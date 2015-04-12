@@ -131,38 +131,43 @@ namespace Shuttle.ESB.SqlServer
 			Subscribe(new[] { typeof(T).FullName });
 		}
 
-		public IEnumerable<string> GetSubscribedUris(object message)
-		{
-			Guard.AgainstNull(message, "message");
+        public IEnumerable<string> GetSubscribedUris(object message)
+        {
+            Guard.AgainstNull(message, "message");
 
-			var messageType = message.GetType().FullName;
+            return GetSubscribedUris(message.GetType().FullName);
+        }
 
-			if (!subscribers.ContainsKey(messageType))
-			{
-				lock (padlock)
-				{
-					if (!subscribers.ContainsKey(messageType))
-					{
-						DataTable table;
+        public IEnumerable<string> GetSubscribedUris(string messageType)
+        {
+            Guard.AgainstNullOrEmptyString(messageType, "messageType");
+            
+            if (!subscribers.ContainsKey(messageType))
+            {
+                lock (padlock)
+                {
+                    if (!subscribers.ContainsKey(messageType))
+                    {
+                        DataTable table;
 
-						using (databaseConnectionFactory.Create(_subscriptionDataSource))
-						{
-							table = databaseGateway.GetDataTableFor(
-								_subscriptionDataSource,
-								RawQuery.Create(
-									scriptProvider.GetScript(
-										Script.SubscriptionManagerInboxWorkQueueUris))
-										.AddParameterValue(SubscriptionManagerColumns.MessageType, messageType));
-						}
+                        using (databaseConnectionFactory.Create(_subscriptionDataSource))
+                        {
+                            table = databaseGateway.GetDataTableFor(
+                                _subscriptionDataSource,
+                                RawQuery.Create(
+                                    scriptProvider.GetScript(
+                                        Script.SubscriptionManagerInboxWorkQueueUris))
+                                        .AddParameterValue(SubscriptionManagerColumns.MessageType, messageType));
+                        }
 
-						subscribers.Add(messageType, (from DataRow row in table.Rows
-													  select SubscriptionManagerColumns.InboxWorkQueueUri.MapFrom(row))
-														 .ToList());
-					}
-				}
-			}
+                        subscribers.Add(messageType, (from DataRow row in table.Rows
+                                                      select SubscriptionManagerColumns.InboxWorkQueueUri.MapFrom(row))
+                                                         .ToList());
+                    }
+                }
+            }
 
-			return subscribers[messageType];
-		}
+            return subscribers[messageType];
+        }
 	}
 }
